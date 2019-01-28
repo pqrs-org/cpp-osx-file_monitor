@@ -410,6 +410,40 @@ TEST_CASE("file_monitor") {
     REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
     REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
   }
+
+  {
+    // ========================================
+    // Update file after self update.
+    // ========================================
+
+    system("rm -rf target");
+    system("mkdir -p target/sub1");
+    system("mkdir -p target/sub2");
+    system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
+    system("/bin/echo -n 1_2_0 > target/sub1/file1_2");
+
+    test_file_monitor monitor;
+
+    monitor.clear_results();
+
+    {
+      std::ofstream(file_path_1_1) << "1_1_1";
+    }
+
+    monitor.wait();
+
+    REQUIRE(monitor.get_count() == 0);
+
+    system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
+
+    monitor.wait();
+
+    REQUIRE(monitor.get_count() >= 1);
+    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
+    REQUIRE(monitor.get_last_file_body1_1() == "1_1_0"s);
+    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
+    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
+  }
 }
 
 TEST_CASE("read_file") {
