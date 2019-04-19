@@ -124,6 +124,8 @@ TEST_CASE("file_monitor") {
   using namespace std::string_literals;
 
   {
+    std::cout << "." << std::flush;
+
     system("rm -rf target");
     system("mkdir -p target/sub1");
     system("mkdir -p target/sub2");
@@ -142,6 +144,8 @@ TEST_CASE("file_monitor") {
     // Generic file modification (update file1_1)
     // ========================================
 
+    std::cout << "." << std::flush;
+
     monitor.clear_results();
 
     system("/bin/echo -n 1_1_1 > target/sub1/file1_1");
@@ -157,6 +161,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // Generic file modification (update file1_1 again)
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -174,6 +180,8 @@ TEST_CASE("file_monitor") {
     // Generic file modification (update file1_2)
     // ========================================
 
+    std::cout << "." << std::flush;
+
     monitor.clear_results();
 
     system("/bin/echo -n 1_2_1 > target/sub1/file1_2");
@@ -189,6 +197,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // Generic file modification (update file1_2 again)
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -206,6 +216,8 @@ TEST_CASE("file_monitor") {
     // Generic file modification (update file1_1 again)
     // ========================================
 
+    std::cout << "." << std::flush;
+
     monitor.clear_results();
 
     system("/bin/echo -n 1_1_3 > target/sub1/file1_1");
@@ -221,6 +233,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // Generic file modification (update file2_1)
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -238,6 +252,8 @@ TEST_CASE("file_monitor") {
     // File removal
     // ========================================
 
+    std::cout << "." << std::flush;
+
     monitor.clear_results();
 
     system("rm target/sub1/file1_2");
@@ -253,6 +269,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // File removal
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -270,6 +288,8 @@ TEST_CASE("file_monitor") {
     // Directory removal
     // ========================================
 
+    std::cout << "." << std::flush;
+
     monitor.clear_results();
 
     system("rm -rf target");
@@ -285,6 +305,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // Generic file modification
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -306,6 +328,8 @@ TEST_CASE("file_monitor") {
     // Move file
     // ========================================
 
+    std::cout << "." << std::flush;
+
     monitor.clear_results();
 
     system("/bin/echo -n 1_1_5 > target/sub1/file1_1.new");
@@ -322,6 +346,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // Move directory
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -347,6 +373,8 @@ TEST_CASE("file_monitor") {
     // Ignore own process
     // ========================================
 
+    std::cout << "." << std::flush;
+
     monitor.clear_results();
 
     {
@@ -364,6 +392,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // enqueue_file_changed
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -383,6 +413,8 @@ TEST_CASE("file_monitor") {
     // Create test_file_monitor when any target files do not exist.
     // ========================================
 
+    std::cout << "." << std::flush;
+
     system("rm -rf target");
 
     test_file_monitor monitor;
@@ -396,6 +428,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // Generic file modification
     // ========================================
+
+    std::cout << "." << std::flush;
 
     monitor.clear_results();
 
@@ -415,6 +449,8 @@ TEST_CASE("file_monitor") {
     // ========================================
     // Update file after self update.
     // ========================================
+
+    std::cout << "." << std::flush;
 
     system("rm -rf target");
     system("mkdir -p target/sub1");
@@ -444,6 +480,8 @@ TEST_CASE("file_monitor") {
     REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
     REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
   }
+
+  std::cout << std::endl;
 }
 
 TEST_CASE("read_file") {
