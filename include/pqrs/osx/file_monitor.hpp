@@ -232,7 +232,7 @@ private:
   }
 
   // This method is executed in cf_run_loop_thread_.
-  void stream_callback(const std::shared_ptr<std::vector<fs_event>>& fs_events) {
+  void stream_callback(std::shared_ptr<std::vector<fs_event>> fs_events) {
     for (auto e : *fs_events) {
       if (e.flags & (kFSEventStreamEventFlagRootChanged |
                      kFSEventStreamEventFlagKernelDropped |
