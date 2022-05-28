@@ -1,6 +1,4 @@
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
-
+#include <boost/ut.hpp>
 #include <pqrs/osx/file_monitor.hpp>
 
 namespace {
@@ -120,387 +118,394 @@ private:
 };
 } // namespace
 
-TEST_CASE("file_monitor") {
-  using namespace std::string_literals;
-
-  {
-    std::cout << "." << std::flush;
-
-    system("rm -rf target");
-    system("mkdir -p target/sub1");
-    system("mkdir -p target/sub2");
-    system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
-    system("/bin/echo -n 1_2_0 > target/sub1/file1_2");
-
-    test_file_monitor monitor;
-
-    REQUIRE(monitor.get_count() >= 3);
-    REQUIRE(monitor.get_last_file_path() == file_path_2_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_0"s);
-    REQUIRE(monitor.get_last_file_body1_2() == "1_2_0"s);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification (update file1_1)
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("/bin/echo -n 1_1_1 > target/sub1/file1_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_1"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification (update file1_1 again)
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("/bin/echo -n 1_1_2 > target/sub1/file1_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_2"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification (update file1_2)
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("/bin/echo -n 1_2_1 > target/sub1/file1_2");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_2);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == "1_2_1"s);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification (update file1_2 again)
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("/bin/echo -n 1_2_2 > target/sub1/file1_2");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_2);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == "1_2_2"s);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification (update file1_1 again)
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("/bin/echo -n 1_1_3 > target/sub1/file1_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_3"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification (update file2_1)
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("/bin/echo -n 2_1_1 > target/sub2/file2_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_2_1);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == "2_1_1"s);
-
-    // ========================================
-    // File removal
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("rm target/sub1/file1_2");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_2);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // File removal
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("rm target/sub2/file2_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_2_1);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Directory removal
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("rm -rf target");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("mkdir -p target/sub1");
-
-    monitor.wait();
-
-    system("/bin/echo -n 1_1_4 > target/sub1/file1_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_4"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Move file
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("/bin/echo -n 1_1_5 > target/sub1/file1_1.new");
-    system("mv target/sub1/file1_1.new target/sub1/file1_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_5"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Move directory
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("rm -rf target");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-
-    system("mkdir -p target.new/sub1");
-    system("/bin/echo -n 1_1_6 > target.new/sub1/file1_1");
-    system("mv target.new target");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 2);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_6"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Ignore own process
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
+int main(void) {
+  using namespace boost::ut;
+  using namespace boost::ut::literals;
+
+  "file_monitor"_test = [] {
+    using namespace std::string_literals;
 
     {
-      std::ofstream(file_path_1_1) << "1_1_7";
+      std::cout << "." << std::flush;
+
+      system("rm -rf target");
+      system("mkdir -p target/sub1");
+      system("mkdir -p target/sub2");
+      system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
+      system("/bin/echo -n 1_2_0 > target/sub1/file1_2");
+
+      test_file_monitor monitor;
+
+      expect(monitor.get_count() >= 3);
+      expect(monitor.get_last_file_path() == file_path_2_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_0"s);
+      expect(monitor.get_last_file_body1_2() == "1_2_0"s);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification (update file1_1)
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("/bin/echo -n 1_1_1 > target/sub1/file1_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_1"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification (update file1_1 again)
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("/bin/echo -n 1_1_2 > target/sub1/file1_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_2"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification (update file1_2)
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("/bin/echo -n 1_2_1 > target/sub1/file1_2");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_2);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == "1_2_1"s);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification (update file1_2 again)
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("/bin/echo -n 1_2_2 > target/sub1/file1_2");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_2);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == "1_2_2"s);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification (update file1_1 again)
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("/bin/echo -n 1_1_3 > target/sub1/file1_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_3"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification (update file2_1)
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("/bin/echo -n 2_1_1 > target/sub2/file2_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_2_1);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == "2_1_1"s);
+
+      // ========================================
+      // File removal
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("rm target/sub1/file1_2");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_2);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // File removal
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("rm target/sub2/file2_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_2_1);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Directory removal
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("rm -rf target");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("mkdir -p target/sub1");
+
+      monitor.wait();
+
+      system("/bin/echo -n 1_1_4 > target/sub1/file1_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_4"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Move file
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("/bin/echo -n 1_1_5 > target/sub1/file1_1.new");
+      system("mv target/sub1/file1_1.new target/sub1/file1_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_5"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Move directory
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("rm -rf target");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+
+      system("mkdir -p target.new/sub1");
+      system("/bin/echo -n 1_1_6 > target.new/sub1/file1_1");
+      system("mv target.new target");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 2);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_6"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Ignore own process
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      {
+        std::ofstream(file_path_1_1) << "1_1_7";
+      }
+
+      monitor.wait();
+
+      expect(monitor.get_count() == 0);
+      expect(monitor.get_last_file_path() == std::nullopt);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // enqueue_file_changed
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      monitor.enqueue_file_changed(file_path_1_1);
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_7"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
     }
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() == 0);
-    REQUIRE(monitor.get_last_file_path() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // enqueue_file_changed
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    monitor.enqueue_file_changed(file_path_1_1);
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_7"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-  }
-
-  {
-    // ========================================
-    // Create test_file_monitor when any target files do not exist.
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    system("rm -rf target");
-
-    test_file_monitor monitor;
-
-    REQUIRE(monitor.get_count() >= 3);
-    REQUIRE(monitor.get_last_file_path() == file_path_2_1);
-    REQUIRE(monitor.get_last_file_body1_1() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-
-    // ========================================
-    // Generic file modification
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    monitor.clear_results();
-
-    system("mkdir -p target/sub1");
-    system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
-
-    monitor.wait();
-
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_0"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-  }
-
-  {
-    // ========================================
-    // Update file after self update.
-    // ========================================
-
-    std::cout << "." << std::flush;
-
-    system("rm -rf target");
-    system("mkdir -p target/sub1");
-    system("mkdir -p target/sub2");
-    system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
-    system("/bin/echo -n 1_2_0 > target/sub1/file1_2");
-
-    test_file_monitor monitor;
-
-    monitor.clear_results();
 
     {
-      std::ofstream(file_path_1_1) << "1_1_1";
+      // ========================================
+      // Create test_file_monitor when any target files do not exist.
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      system("rm -rf target");
+
+      test_file_monitor monitor;
+
+      expect(monitor.get_count() >= 3);
+      expect(monitor.get_last_file_path() == file_path_2_1);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+
+      // ========================================
+      // Generic file modification
+      // ========================================
+
+      std::cout << "." << std::flush;
+
+      monitor.clear_results();
+
+      system("mkdir -p target/sub1");
+      system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
+
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_0"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
     }
 
-    monitor.wait();
+    {
+      // ========================================
+      // Update file after self update.
+      // ========================================
 
-    REQUIRE(monitor.get_count() == 0);
+      std::cout << "." << std::flush;
 
-    system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
+      system("rm -rf target");
+      system("mkdir -p target/sub1");
+      system("mkdir -p target/sub2");
+      system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
+      system("/bin/echo -n 1_2_0 > target/sub1/file1_2");
 
-    monitor.wait();
+      test_file_monitor monitor;
 
-    REQUIRE(monitor.get_count() >= 1);
-    REQUIRE(monitor.get_last_file_path() == file_path_1_1);
-    REQUIRE(monitor.get_last_file_body1_1() == "1_1_0"s);
-    REQUIRE(monitor.get_last_file_body1_2() == std::nullopt);
-    REQUIRE(monitor.get_last_file_body2_1() == std::nullopt);
-  }
+      monitor.clear_results();
 
-  std::cout << std::endl;
-}
+      {
+        std::ofstream(file_path_1_1) << "1_1_1";
+      }
 
-TEST_CASE("read_file") {
-  {
-    auto buffer = pqrs::osx::file_monitor::read_file("data/not_found");
+      monitor.wait();
 
-    REQUIRE(!buffer);
-  }
+      expect(monitor.get_count() == 0);
 
-  {
-    auto buffer = pqrs::osx::file_monitor::read_file("data/app.icns");
+      system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
 
-    REQUIRE(buffer);
-    REQUIRE(buffer->size() == 225321);
-    REQUIRE((*buffer)[0] == 0x69);
-    REQUIRE((*buffer)[1] == 0x63);
-    REQUIRE((*buffer)[2] == 0x6e);
-    REQUIRE((*buffer)[3] == 0x73);
-    REQUIRE((*buffer)[4] == 0x00);
-    REQUIRE((*buffer)[5] == 0x03);
-  }
+      monitor.wait();
+
+      expect(monitor.get_count() >= 1);
+      expect(monitor.get_last_file_path() == file_path_1_1);
+      expect(monitor.get_last_file_body1_1() == "1_1_0"s);
+      expect(monitor.get_last_file_body1_2() == std::nullopt);
+      expect(monitor.get_last_file_body2_1() == std::nullopt);
+    }
+
+    std::cout << std::endl;
+  };
+
+  "read_file"_test = [] {
+    {
+      auto buffer = pqrs::osx::file_monitor::read_file("data/not_found");
+
+      expect(buffer.get() == nullptr);
+    }
+
+    {
+      auto buffer = pqrs::osx::file_monitor::read_file("data/app.icns");
+
+      expect(buffer.get() != nullptr);
+      expect(buffer->size() == 225321);
+      expect((*buffer)[0] == 0x69);
+      expect((*buffer)[1] == 0x63);
+      expect((*buffer)[2] == 0x6e);
+      expect((*buffer)[3] == 0x73);
+      expect((*buffer)[4] == 0x00);
+      expect((*buffer)[5] == 0x03);
+    }
+  };
+
+  return 0;
 }
