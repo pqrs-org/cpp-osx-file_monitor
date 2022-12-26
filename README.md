@@ -11,7 +11,6 @@ cpp-osx-file_monitor depends the following classes.
 
 - [Nod](https://github.com/fr00b0/nod)
 - [pqrs::cf::array](https://github.com/pqrs-org/cpp-cf-array)
-- [pqrs::cf::run_loop_thread](https://github.com/pqrs-org/cpp-cf-run_loop_thread)
 - [pqrs::cf::string](https://github.com/pqrs-org/cpp-cf-string)
 - [pqrs::dispatcher](https://github.com/pqrs-org/cpp-dispatcher)
 - [pqrs::filesystem](https://github.com/pqrs-org/cpp-filesystem)
