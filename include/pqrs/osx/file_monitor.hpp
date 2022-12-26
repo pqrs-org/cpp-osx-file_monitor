@@ -56,11 +56,16 @@ public:
       }
     }
 
-    impl::file_monitors_manager::insert(this);
+    dispatch_sync(queue_, ^{
+      impl::file_monitors_manager::insert(this);
+    });
   }
 
   virtual ~file_monitor(void) {
-    impl::file_monitors_manager::erase(this);
+    // Wrap with dispatch_sync to prevent file_monitor destruction while static_stream_callback is running.
+    dispatch_sync(queue_, ^{
+      impl::file_monitors_manager::erase(this);
+    });
 
     dispatch_release(queue_);
 
