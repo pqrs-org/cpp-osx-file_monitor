@@ -330,7 +330,7 @@ private:
 
   class impl {
   public:
-#include "impl/file_monitors_manager.hpp"
+#include "file_monitor/impl/file_monitors_manager.hpp"
   };
 };
 } // namespace osx
