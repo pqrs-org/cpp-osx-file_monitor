@@ -13,20 +13,10 @@ cpp-osx-file_monitor depends the following classes.
 - [pqrs::cf::array](https://github.com/pqrs-org/cpp-cf-array)
 - [pqrs::cf::string](https://github.com/pqrs-org/cpp-cf-string)
 - [pqrs::dispatcher](https://github.com/pqrs-org/cpp-dispatcher)
+- [pqrs::environment_variable](https://github.com/pqrs-org/cpp-environment_variable)
 - [pqrs::filesystem](https://github.com/pqrs-org/cpp-filesystem)
 - [type_safe](https://github.com/foonathan/type_safe)
 
 ## Install
 
-### Using package manager
-
-You can install `include/pqrs` by using [cget](https://github.com/pfultz2/cget).
-
-```shell
-cget install pqrs-org/cget-recipes
-cget install pqrs-org/cpp-osx-file_monitor
-```
-
-### Manual install
-
-Copy `include/pqrs` directory into your include directory.
+Copy `include/pqrs` and `vendor/vendor/include` directories into your include directory.
