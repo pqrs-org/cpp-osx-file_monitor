@@ -1,6 +1,6 @@
 #pragma once
 
-// pqrs::osx::file_monitor v1.7
+// pqrs::osx::file_monitor v1.8.0
 
 // (C) Copyright Takayama Fumihiko 2018.
 // Distributed under the Boost Software License, Version 1.0.
