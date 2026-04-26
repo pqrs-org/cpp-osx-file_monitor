@@ -154,39 +154,6 @@ private:
       return;
     }
 
-    // ----------------------------------------
-    // File System Events API does not call the callback if the root directory and files are moved at the same time.
-    //
-    // Example:
-    //
-    //   FSEventStreamCreate(... ,{"target/file1", "target/file2"})
-    //
-    //   $ mkdir target.new
-    //   $ echo  target.new/file1
-    //   $ mv    target.new target
-    //
-    //   In this case, the callback will not be called.
-    //
-    // Thus, we should signal manually once.
-
-    update_watched_directory_availabilities();
-
-    for (const auto& file_path : files_) {
-      update_stream_file_paths(file_path);
-
-      auto [updated, file_body, availability] = update_file_bodies(file_path);
-      if (availability) {
-        emit_watched_file_availability_changed(file_path,
-                                               *availability);
-      }
-      if (updated) {
-        emit_file_changed(file_path,
-                          file_body);
-      }
-    }
-
-    // ----------------------------------------
-
     FSEventStreamContext context{0};
     context.info = this;
 
@@ -219,11 +186,14 @@ private:
       FSEventStreamSetDispatchQueue(stream_,
                                     queue_);
       if (!FSEventStreamStart(stream_)) {
+        cleanup_stream_registration_failure();
+
         enqueue_to_dispatcher([this] {
           error_occurred("FSEventStreamStart is failed.");
         });
       } else {
         ready_ = true;
+        emit_initial_state();
       }
     }
   }
@@ -232,6 +202,49 @@ private:
   void unregister_stream(bool emit_unavailable_signal = true) {
     ready_ = false;
 
+    clear_stream_state(emit_unavailable_signal);
+    release_stream(true);
+  }
+
+  void cleanup_stream_registration_failure() {
+    ready_ = false;
+
+    clear_stream_state(false);
+    release_stream(false);
+  }
+
+  void emit_initial_state() {
+    // File System Events API does not call the callback if the root directory and files are moved at the same time.
+    //
+    // Example:
+    //
+    //   FSEventStreamCreate(... ,{"target/file1", "target/file2"})
+    //
+    //   $ mkdir target.new
+    //   $ echo  target.new/file1
+    //   $ mv    target.new target
+    //
+    //   In this case, the callback will not be called.
+    //
+    // Thus, we should signal manually once after the stream is started.
+    update_watched_directory_availabilities();
+
+    for (const auto& file_path : files_) {
+      update_stream_file_paths(file_path);
+
+      auto [updated, file_body, availability] = update_file_bodies(file_path);
+      if (availability) {
+        emit_watched_file_availability_changed(file_path,
+                                               *availability);
+      }
+      if (updated) {
+        emit_file_changed(file_path,
+                          file_body);
+      }
+    }
+  }
+
+  void clear_stream_state(bool emit_unavailable_signal) {
     if (emit_unavailable_signal) {
       for (const auto& [file_path, file_body] : file_bodies_) {
         if (file_body) {
@@ -251,9 +264,13 @@ private:
     stream_file_paths_.clear();
     directory_availabilities_.clear();
     file_bodies_.clear();
+  }
 
+  void release_stream(bool stop_stream) {
     if (stream_) {
-      FSEventStreamStop(stream_);
+      if (stop_stream) {
+        FSEventStreamStop(stream_);
+      }
       FSEventStreamInvalidate(stream_);
       FSEventStreamRelease(stream_);
       stream_ = nullptr;
