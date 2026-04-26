@@ -109,19 +109,35 @@ public:
 
   static std::shared_ptr<std::vector<uint8_t>> read_file(const std::string& path) {
     std::ifstream ifstream(path);
-    if (ifstream) {
-      ifstream.seekg(0, std::fstream::end);
-      auto size = ifstream.tellg();
-      ifstream.seekg(0, std::fstream::beg);
-
-      auto buffer = std::make_shared<std::vector<uint8_t>>(size);
-      if (size > 0) {
-        ifstream.read(reinterpret_cast<char*>(buffer->data()), size);
-      }
-
-      return buffer;
+    if (!ifstream) {
+      return nullptr;
     }
-    return nullptr;
+
+    ifstream.seekg(0, std::fstream::end);
+    if (!ifstream) {
+      return nullptr;
+    }
+
+    auto size = ifstream.tellg();
+    if (size < std::streampos(0)) {
+      return nullptr;
+    }
+
+    ifstream.seekg(0, std::fstream::beg);
+    if (!ifstream) {
+      return nullptr;
+    }
+
+    auto buffer = std::make_shared<std::vector<uint8_t>>(static_cast<size_t>(size));
+    if (size > std::streampos(0)) {
+      ifstream.read(reinterpret_cast<char*>(buffer->data()),
+                    static_cast<std::streamsize>(size));
+      if (!ifstream) {
+        return nullptr;
+      }
+    }
+
+    return buffer;
   }
 
 private:
