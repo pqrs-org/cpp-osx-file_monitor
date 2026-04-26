@@ -494,6 +494,16 @@ int main(void) {
     }
 
     {
+      system("mkdir -p target");
+      system(": > target/empty");
+
+      auto buffer = pqrs::osx::file_monitor::read_file("target/empty");
+
+      expect(buffer.get() != nullptr);
+      expect(buffer->empty());
+    }
+
+    {
       auto buffer = pqrs::osx::file_monitor::read_file("data/app.icns");
 
       expect(buffer.get() != nullptr);
@@ -505,6 +515,26 @@ int main(void) {
       expect((*buffer)[4] == 0x00);
       expect((*buffer)[5] == 0x03);
     }
+  };
+
+  "destruction_after_dispatcher_termination"_test = [] {
+    auto time_source = std::make_shared<pqrs::dispatcher::hardware_time_source>();
+    auto dispatcher = std::make_shared<pqrs::dispatcher::dispatcher>(time_source);
+
+    auto monitor = std::make_unique<pqrs::osx::file_monitor>(
+        dispatcher,
+        std::vector<std::string>{"target/destruction_test"});
+
+    monitor->async_start();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    dispatcher->terminate();
+    dispatcher = nullptr;
+
+    monitor = nullptr;
+
+    expect(true);
   };
 
   return 0;

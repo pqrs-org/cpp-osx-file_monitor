@@ -62,16 +62,17 @@ public:
   }
 
   virtual ~file_monitor(void) {
-    // Wrap with dispatch_sync to prevent file_monitor destruction while static_stream_callback is running.
+    // Stop dispatcher work first so no queued dispatcher task can access `this`
+    // while we tear down the FSEvent stream on `queue_`.
+    detach_from_dispatcher();
+
+    // Run the stream cleanup on `queue_` itself to serialize against `static_stream_callback`.
     dispatch_sync(queue_, ^{
+      unregister_stream();
       impl::file_monitors_manager::erase(this);
     });
 
     dispatch_release(queue_);
-
-    detach_from_dispatcher([this] {
-      unregister_stream();
-    });
   }
 
   void async_start(void) {
@@ -101,7 +102,9 @@ public:
       ifstream.seekg(0, std::fstream::beg);
 
       auto buffer = std::make_shared<std::vector<uint8_t>>(size);
-      ifstream.read(reinterpret_cast<char*>(&((*buffer)[0])), size);
+      if (size > 0) {
+        ifstream.read(reinterpret_cast<char*>(buffer->data()), size);
+      }
 
       return buffer;
     }
