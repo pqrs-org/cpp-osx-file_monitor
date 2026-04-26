@@ -8,7 +8,7 @@ std::string file_path_2_1 = "../src/target//sub2/file2_1";
 
 class test_file_monitor final {
 public:
-  test_file_monitor(void) : count_(0) {
+  test_file_monitor() : count_(0) {
     time_source_ = std::make_shared<pqrs::dispatcher::hardware_time_source>();
     dispatcher_ = std::make_shared<pqrs::dispatcher::dispatcher>(time_source_);
 
@@ -64,32 +64,32 @@ public:
     wait();
   }
 
-  ~test_file_monitor(void) {
+  ~test_file_monitor() {
     dispatcher_->terminate();
     dispatcher_ = nullptr;
   }
 
-  size_t get_count(void) const {
+  size_t get_count() const {
     return count_;
   }
 
-  const std::optional<std::string>& get_last_file_path(void) const {
+  const std::optional<std::string>& get_last_file_path() const {
     return last_file_path_;
   }
 
-  const std::optional<std::string>& get_last_file_body1_1(void) const {
+  const std::optional<std::string>& get_last_file_body1_1() const {
     return last_file_body1_1_;
   }
 
-  const std::optional<std::string>& get_last_file_body1_2(void) const {
+  const std::optional<std::string>& get_last_file_body1_2() const {
     return last_file_body1_2_;
   }
 
-  const std::optional<std::string>& get_last_file_body2_1(void) const {
+  const std::optional<std::string>& get_last_file_body2_1() const {
     return last_file_body2_1_;
   }
 
-  void clear_results(void) {
+  void clear_results() {
     count_ = 0;
     last_file_path_ = std::nullopt;
     last_file_body1_1_ = std::nullopt;
@@ -97,7 +97,7 @@ public:
     last_file_body2_1_ = std::nullopt;
   }
 
-  void wait(void) {
+  void wait() {
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }
 
@@ -118,7 +118,7 @@ private:
 };
 } // namespace
 
-int main(void) {
+int main() {
   using namespace boost::ut;
   using namespace boost::ut::literals;
 

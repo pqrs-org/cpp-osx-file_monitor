@@ -24,12 +24,12 @@ public:
   }
 
 private:
-  static std::mutex& mutex(void) {
+  static std::mutex& mutex() {
     static std::mutex mutex;
     return mutex;
   }
 
-  static std::unordered_set<file_monitor*>& set(void) {
+  static std::unordered_set<file_monitor*>& set() {
     static std::unordered_set<file_monitor*> set;
     return set;
   }

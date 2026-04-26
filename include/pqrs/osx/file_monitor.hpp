@@ -61,7 +61,7 @@ public:
     });
   }
 
-  virtual ~file_monitor(void) {
+  virtual ~file_monitor() {
     // Stop dispatcher work first so no queued dispatcher task can access `this`
     // while we tear down the FSEvent stream on `queue_`.
     detach_from_dispatcher();
@@ -75,7 +75,7 @@ public:
     dispatch_release(queue_);
   }
 
-  void async_start(void) {
+  void async_start() {
     enqueue_to_dispatcher([this] {
       register_stream();
     });
@@ -113,7 +113,7 @@ public:
 
 private:
   // This method is executed in the dispatcher thread.
-  void register_stream(void) {
+  void register_stream() {
     // Skip if already started.
 
     if (stream_) {
@@ -192,7 +192,7 @@ private:
   }
 
   // This method is executed in the dispatcher thread.
-  void unregister_stream(void) {
+  void unregister_stream() {
     if (stream_) {
       FSEventStreamStop(stream_);
       FSEventStreamInvalidate(stream_);
