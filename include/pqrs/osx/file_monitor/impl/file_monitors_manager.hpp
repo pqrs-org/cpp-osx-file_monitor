@@ -19,8 +19,7 @@ public:
   static bool alive(file_monitor* p) {
     std::lock_guard<std::mutex> lock(mutex());
 
-    auto it = set().find(p);
-    return it != std::end(set());
+    return set().contains(p);
   }
 
 private:

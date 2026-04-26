@@ -8,21 +8,28 @@ std::string file_path_2_1 = "../src/target//sub2/file2_1";
 
 class test_file_monitor final {
 public:
-  test_file_monitor() : count_(0) {
+  test_file_monitor() {
     time_source_ = std::make_shared<pqrs::dispatcher::hardware_time_source>();
     dispatcher_ = std::make_shared<pqrs::dispatcher::dispatcher>(time_source_);
 
-    std::vector<std::string> targets({
+    const auto targets = std::vector<std::string>{
         file_path_1_1,
         file_path_1_2,
         file_path_2_1,
-    });
+    };
 
     file_monitor_ = std::make_unique<pqrs::osx::file_monitor>(dispatcher_,
                                                               targets);
 
     file_monitor_->file_changed.connect([&](auto&& changed_file_path,
                                             auto&& changed_file_body) {
+      const auto to_optional_string = [](const auto& body) -> std::optional<std::string> {
+        if (!body) {
+          return std::nullopt;
+        }
+        return std::string(std::begin(*body), std::end(*body));
+      };
+
       if (!file_monitor_thread_id_) {
         file_monitor_thread_id_ = std::this_thread::get_id();
       }
@@ -34,28 +41,13 @@ public:
       last_file_path_ = changed_file_path;
 
       if (changed_file_path == file_path_1_1) {
-        if (changed_file_body) {
-          last_file_body1_1_ = std::string(std::begin(*changed_file_body),
-                                           std::end(*changed_file_body));
-        } else {
-          last_file_body1_1_ = std::nullopt;
-        }
+        last_file_body1_1_ = to_optional_string(changed_file_body);
       }
       if (changed_file_path == file_path_1_2) {
-        if (changed_file_body) {
-          last_file_body1_2_ = std::string(std::begin(*changed_file_body),
-                                           std::end(*changed_file_body));
-        } else {
-          last_file_body1_2_ = std::nullopt;
-        }
+        last_file_body1_2_ = to_optional_string(changed_file_body);
       }
       if (changed_file_path == file_path_2_1) {
-        if (changed_file_body) {
-          last_file_body2_1_ = std::string(std::begin(*changed_file_body),
-                                           std::end(*changed_file_body));
-        } else {
-          last_file_body2_1_ = std::nullopt;
-        }
+        last_file_body2_1_ = to_optional_string(changed_file_body);
       }
     });
 
@@ -110,7 +102,7 @@ private:
   std::shared_ptr<pqrs::dispatcher::dispatcher> dispatcher_;
   std::unique_ptr<pqrs::osx::file_monitor> file_monitor_;
   std::optional<std::thread::id> file_monitor_thread_id_;
-  size_t count_;
+  size_t count_ = 0;
   std::optional<std::string> last_file_path_;
   std::optional<std::string> last_file_body1_1_;
   std::optional<std::string> last_file_body1_2_;

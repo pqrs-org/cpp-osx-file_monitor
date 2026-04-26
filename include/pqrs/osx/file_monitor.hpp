@@ -15,6 +15,7 @@
 // these files are not closed while the owner process is running.
 
 #include <CoreServices/CoreServices.h>
+#include <algorithm>
 #include <nod/nod.hpp>
 #include <pqrs/cf/array.hpp>
 #include <pqrs/cf/string.hpp>
@@ -39,8 +40,7 @@ public:
   file_monitor(std::weak_ptr<dispatcher::dispatcher> weak_dispatcher,
                const std::vector<std::string>& files) : dispatcher_client(weak_dispatcher),
                                                         files_(files),
-                                                        directories_(cf::make_cf_mutable_array()),
-                                                        stream_(nullptr) {
+                                                        directories_(cf::make_cf_mutable_array()) {
     queue_ = dispatch_queue_create("org.pqrs.osx.file_monitor", DISPATCH_QUEUE_SERIAL);
 
     std::unordered_set<std::string> directories;
@@ -83,8 +83,8 @@ public:
 
   void enqueue_file_changed(const std::string& file_path) {
     enqueue_to_dispatcher([this, file_path] {
-      auto it = file_bodies_.find(file_path);
-      if (it != std::end(file_bodies_)) {
+      if (auto it = file_bodies_.find(file_path);
+          it != std::end(file_bodies_)) {
         auto changed_file_body = it->second;
         enqueue_to_dispatcher([this, file_path, changed_file_body] {
           file_changed(file_path,
@@ -238,7 +238,7 @@ private:
 
   // This method is executed in the dispatcher thread.
   void stream_callback(std::shared_ptr<std::vector<fs_event>> fs_events) {
-    for (auto e : *fs_events) {
+    for (const auto& e : *fs_events) {
       if (e.flags & (kFSEventStreamEventFlagRootChanged |
                      kFSEventStreamEventFlagKernelDropped |
                      kFSEventStreamEventFlagUserDropped)) {
@@ -253,12 +253,11 @@ private:
         std::optional<std::string> changed_file_path;
 
         if (auto realpath = filesystem::realpath(e.file_path)) {
-          auto it = std::find_if(std::begin(files_),
-                                 std::end(files_),
-                                 [&](auto&& p) {
-                                   return *realpath == filesystem::realpath(p);
-                                 });
-          if (it != std::end(files_)) {
+          if (auto it = std::ranges::find_if(files_,
+                                             [&](const auto& path) {
+                                               return *realpath == filesystem::realpath(path);
+                                             });
+              it != std::end(files_)) {
             stream_file_paths_[e.file_path] = *it;
             changed_file_path = *it;
           }
@@ -266,8 +265,8 @@ private:
           // file_path might be removed.
           // (`realpath` fails if file does not exist.)
 
-          auto it = stream_file_paths_.find(e.file_path);
-          if (it != std::end(stream_file_paths_)) {
+          if (auto it = stream_file_paths_.find(e.file_path);
+              it != std::end(stream_file_paths_)) {
             changed_file_path = it->second;
             stream_file_paths_.erase(it);
           }
@@ -293,36 +292,32 @@ private:
 
   // This method is executed in the dispatcher thread.
   std::pair<bool, std::shared_ptr<std::vector<uint8_t>>> update_file_bodies(const std::string& file_path) {
-    if (std::any_of(std::begin(files_),
-                    std::end(files_),
-                    [&](auto&& p) {
-                      return file_path == p;
-                    })) {
+    if (std::ranges::find(files_, file_path) != std::end(files_)) {
       auto file_body = read_file(file_path);
       auto it = file_bodies_.find(file_path);
       if (it != std::end(file_bodies_)) {
         if (it->second && file_body) {
           if (*(it->second) == *(file_body)) {
             // file_body is not changed
-            return std::make_pair(false, nullptr);
+            return {false, nullptr};
           }
         } else if (!it->second && !file_body) {
           // file_body is not changed
-          return std::make_pair(false, nullptr);
+          return {false, nullptr};
         }
       }
       file_bodies_[file_path] = file_body;
 
-      return std::make_pair(true, file_body);
+      return {true, file_body};
     }
 
-    return std::make_pair(false, nullptr);
+    return {false, nullptr};
   }
 
   std::vector<std::string> files_;
-  dispatch_queue_t queue_;
+  dispatch_queue_t queue_{};
   cf::cf_ptr<CFMutableArrayRef> directories_;
-  FSEventStreamRef stream_;
+  FSEventStreamRef stream_{};
   // FSEventStreamEventPath -> file in files_
   // {
   //   "/Users/.../target/sub1/file1_1": "target/sub1/file1_1",
