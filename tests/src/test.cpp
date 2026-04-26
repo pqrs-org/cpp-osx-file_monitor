@@ -331,6 +331,35 @@ int main() {
       expect(monitor.get_last_file_body2_1() == std::nullopt);
 
       //
+      // File rename after startup
+      //
+
+      std::cout << __LINE__ << " " << std::flush;
+
+      monitor.clear_results();
+
+      system("mv target/sub1/file1_1 target/sub1/file1_1.bak");
+
+      expect(monitor.wait_until([&](const auto& state) {
+        return state.last_availability1_1 == pqrs::osx::file_monitor::availability::unavailable;
+      }));
+
+      expect(monitor.get_last_availability1_1() == pqrs::osx::file_monitor::availability::unavailable);
+      expect(monitor.get_last_file_body1_1() == std::nullopt);
+
+      monitor.clear_results();
+
+      system("mv target/sub1/file1_1.bak target/sub1/file1_1");
+
+      expect(monitor.wait_until([&](const auto& state) {
+        return state.last_availability1_1 == pqrs::osx::file_monitor::availability::available &&
+               state.last_file_body1_1 == "1_1_0"s;
+      }));
+
+      expect(monitor.get_last_availability1_1() == pqrs::osx::file_monitor::availability::available);
+      expect(monitor.get_last_file_body1_1() == "1_1_0"s);
+
+      //
       // Generic file modification (update file1_1)
       //
 
