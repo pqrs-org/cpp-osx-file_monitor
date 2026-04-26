@@ -49,7 +49,6 @@ public:
 
   // Signals (invoked from the dispatcher thread)
 
-  nod::signal<void(const std::string& watched_directory, availability availability)> watched_directory_availability_changed;
   nod::signal<void(const std::string& watched_file, availability availability)> watched_file_availability_changed;
   nod::signal<void(const std::string& changed_file_path, std::shared_ptr<std::vector<uint8_t>> changed_file_body)> file_changed;
   nod::signal<void(const std::string&)> error_occurred;
@@ -252,13 +251,6 @@ private:
                                                  availability::unavailable);
         }
       }
-
-      for (const auto& [directory_path, current_availability] : directory_availabilities_) {
-        if (current_availability == availability::available) {
-          emit_watched_directory_availability_changed(directory_path,
-                                                      availability::unavailable);
-        }
-      }
     }
 
     stream_file_paths_.clear();
@@ -385,14 +377,6 @@ private:
     });
   }
 
-  void emit_watched_directory_availability_changed(const std::string& directory_path,
-                                                   availability availability) {
-    enqueue_to_dispatcher([this, directory_path, availability] {
-      watched_directory_availability_changed(directory_path,
-                                             availability);
-    });
-  }
-
   void update_stream_file_paths(const std::string& file_path) {
     std::erase_if(stream_file_paths_,
                   [&](const auto& pair) {
@@ -413,8 +397,6 @@ private:
       if (current_available != previous_available) {
         auto availability = current_available ? availability::available : availability::unavailable;
         directory_availabilities_[directory_path] = availability;
-        emit_watched_directory_availability_changed(directory_path,
-                                                    availability);
         if (current_available) {
           reevaluate_watched_files_in_directory(directory_path);
         }

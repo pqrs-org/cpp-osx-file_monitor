@@ -22,10 +22,6 @@ int main() {
 
     auto file_monitor = std::make_shared<pqrs::osx::file_monitor>(dispatcher, target_files);
 
-    file_monitor->watched_directory_availability_changed.connect([](auto&& watched_directory, auto availability) {
-      std::cout << "watched_directory_availability_changed: " << watched_directory << " " << availability << std::endl;
-    });
-
     file_monitor->watched_file_availability_changed.connect([](auto&& watched_file, auto availability) {
       std::cout << "watched_file_availability_changed: " << watched_file << " ";
       switch (availability) {

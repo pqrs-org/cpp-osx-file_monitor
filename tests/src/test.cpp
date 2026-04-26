@@ -7,8 +7,6 @@ namespace {
 std::string file_path_1_1 = "target/sub1/file1_1";
 std::string file_path_1_2 = "target/sub1/file1_2";
 std::string file_path_2_1 = "../src/target//sub2/file2_1";
-std::string directory_path_1 = "target/sub1";
-std::string directory_path_2 = "../src/target//sub2";
 
 class test_file_monitor final {
 public:
@@ -22,8 +20,6 @@ public:
     std::optional<pqrs::osx::file_monitor::availability> last_availability1_1;
     std::optional<pqrs::osx::file_monitor::availability> last_availability1_2;
     std::optional<pqrs::osx::file_monitor::availability> last_availability2_1;
-    std::optional<pqrs::osx::file_monitor::availability> last_directory_availability1;
-    std::optional<pqrs::osx::file_monitor::availability> last_directory_availability2;
   };
 
   test_file_monitor() {
@@ -98,25 +94,6 @@ public:
       condition_variable_.notify_all();
     });
 
-    file_monitor_->watched_directory_availability_changed.connect([&](const auto& watched_directory,
-                                                                      auto availability) {
-      // std::cout << "watched_directory_availability_changed: " << watched_directory << " " << availability << std::endl;
-
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        ++signal_count_;
-        if (watched_directory == directory_path_1) {
-          last_directory_availability1_ = availability;
-        }
-        if (watched_directory == directory_path_2) {
-          last_directory_availability2_ = availability;
-        }
-      }
-
-      condition_variable_.notify_all();
-    });
-
     file_monitor_->async_start();
 
     wait_until_ready();
@@ -158,14 +135,6 @@ public:
     return get_snapshot().last_availability2_1;
   }
 
-  std::optional<pqrs::osx::file_monitor::availability> get_last_directory_availability1() const {
-    return get_snapshot().last_directory_availability1;
-  }
-
-  std::optional<pqrs::osx::file_monitor::availability> get_last_directory_availability2() const {
-    return get_snapshot().last_directory_availability2;
-  }
-
   snapshot get_snapshot() const {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -179,8 +148,6 @@ public:
         last_availability1_1_,
         last_availability1_2_,
         last_availability2_1_,
-        last_directory_availability1_,
-        last_directory_availability2_,
     };
   }
 
@@ -195,8 +162,6 @@ public:
     last_availability1_1_ = std::nullopt;
     last_availability1_2_ = std::nullopt;
     last_availability2_1_ = std::nullopt;
-    last_directory_availability1_ = std::nullopt;
-    last_directory_availability2_ = std::nullopt;
   }
 
   template <typename Predicate>
@@ -216,8 +181,6 @@ public:
                                               last_availability1_1_,
                                               last_availability1_2_,
                                               last_availability2_1_,
-                                              last_directory_availability1_,
-                                              last_directory_availability2_,
                                           });
                                         });
   }
@@ -291,8 +254,6 @@ private:
   std::optional<pqrs::osx::file_monitor::availability> last_availability1_1_;
   std::optional<pqrs::osx::file_monitor::availability> last_availability1_2_;
   std::optional<pqrs::osx::file_monitor::availability> last_availability2_1_;
-  std::optional<pqrs::osx::file_monitor::availability> last_directory_availability1_;
-  std::optional<pqrs::osx::file_monitor::availability> last_directory_availability2_;
 };
 } // namespace
 
@@ -524,13 +485,11 @@ int main() {
       system("rm -rf target");
 
       expect(monitor.wait_until([&](const auto& state) {
-        return state.last_availability1_1 == pqrs::osx::file_monitor::availability::unavailable &&
-               state.last_directory_availability1 == pqrs::osx::file_monitor::availability::unavailable;
+        return state.last_availability1_1 == pqrs::osx::file_monitor::availability::unavailable;
       }));
       expect(monitor.wait_until_ready());
 
       expect(monitor.get_last_availability1_1() == pqrs::osx::file_monitor::availability::unavailable);
-      expect(monitor.get_last_directory_availability1() == pqrs::osx::file_monitor::availability::unavailable);
       expect(monitor.get_last_file_body1_1() == std::nullopt);
       expect(monitor.get_last_file_body1_2() == std::nullopt);
       expect(monitor.get_last_file_body2_1() == std::nullopt);
@@ -588,8 +547,7 @@ int main() {
       system("rm -rf target");
 
       expect(monitor.wait_until([&](const auto& state) {
-        return state.last_availability1_1 == pqrs::osx::file_monitor::availability::unavailable &&
-               state.last_directory_availability1 == pqrs::osx::file_monitor::availability::unavailable;
+        return state.last_availability1_1 == pqrs::osx::file_monitor::availability::unavailable;
       }));
       expect(monitor.wait_until_ready());
 
