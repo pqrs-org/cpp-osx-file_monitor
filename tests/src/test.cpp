@@ -1,7 +1,14 @@
 #include <boost/ut.hpp>
+#include <chrono>
 #include <condition_variable>
+#include <fstream>
+#include <iostream>
 #include <mutex>
+#include <optional>
 #include <pqrs/osx/file_monitor.hpp>
+#include <stdexcept>
+#include <string>
+#include <thread>
 
 namespace {
 std::string file_path_1_1 = "target/sub1/file1_1";
@@ -44,15 +51,10 @@ public:
         return std::string(std::begin(*body), std::end(*body));
       };
 
-      if (!file_monitor_thread_id_) {
-        file_monitor_thread_id_ = std::this_thread::get_id();
-      }
-      if (file_monitor_thread_id_ != std::this_thread::get_id()) {
-        throw std::logic_error("thread id mismatch");
-      }
-
       {
         std::lock_guard<std::mutex> lock(mutex_);
+
+        validate_signal_thread_id();
 
         ++signal_count_;
         ++count_;
@@ -78,6 +80,8 @@ public:
 
       {
         std::lock_guard<std::mutex> lock(mutex_);
+
+        validate_signal_thread_id();
 
         ++signal_count_;
         if (watched_file == file_path_1_1) {
@@ -107,35 +111,35 @@ public:
     dispatcher_ = nullptr;
   }
 
-  size_t get_count() const {
+  [[nodiscard]] size_t get_count() const {
     return get_snapshot().count;
   }
 
-  std::optional<std::string> get_last_file_body1_1() const {
+  [[nodiscard]] std::optional<std::string> get_last_file_body1_1() const {
     return get_snapshot().last_file_body1_1;
   }
 
-  std::optional<std::string> get_last_file_body1_2() const {
+  [[nodiscard]] std::optional<std::string> get_last_file_body1_2() const {
     return get_snapshot().last_file_body1_2;
   }
 
-  std::optional<std::string> get_last_file_body2_1() const {
+  [[nodiscard]] std::optional<std::string> get_last_file_body2_1() const {
     return get_snapshot().last_file_body2_1;
   }
 
-  std::optional<pqrs::osx::file_monitor::availability> get_last_availability1_1() const {
+  [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability1_1() const {
     return get_snapshot().last_availability1_1;
   }
 
-  std::optional<pqrs::osx::file_monitor::availability> get_last_availability1_2() const {
+  [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability1_2() const {
     return get_snapshot().last_availability1_2;
   }
 
-  std::optional<pqrs::osx::file_monitor::availability> get_last_availability2_1() const {
+  [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability2_1() const {
     return get_snapshot().last_availability2_1;
   }
 
-  snapshot get_snapshot() const {
+  [[nodiscard]] snapshot get_snapshot() const {
     std::lock_guard<std::mutex> lock(mutex_);
 
     return {
@@ -189,7 +193,7 @@ public:
     file_monitor_->enqueue_file_changed(file_path);
   }
 
-  size_t get_signal_count() const {
+  [[nodiscard]] size_t get_signal_count() const {
     return get_snapshot().signal_count;
   }
 
@@ -239,10 +243,20 @@ public:
   }
 
 private:
+  void validate_signal_thread_id() {
+    auto thread_id = std::this_thread::get_id();
+    if (!signal_thread_id_) {
+      signal_thread_id_ = thread_id;
+    }
+    if (signal_thread_id_ != thread_id) {
+      throw std::logic_error("thread id mismatch");
+    }
+  }
+
   std::shared_ptr<pqrs::dispatcher::hardware_time_source> time_source_;
   std::shared_ptr<pqrs::dispatcher::dispatcher> dispatcher_;
   std::unique_ptr<pqrs::osx::file_monitor> file_monitor_;
-  std::optional<std::thread::id> file_monitor_thread_id_;
+  std::optional<std::thread::id> signal_thread_id_;
   mutable std::mutex mutex_;
   std::condition_variable condition_variable_;
   size_t count_ = 0;
