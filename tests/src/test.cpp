@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 namespace {
 std::string file_path_1_1 = "target/sub1/file1_1";
@@ -21,23 +23,45 @@ public:
     size_t count;
     size_t signal_count;
     std::optional<std::string> last_file_path;
+    std::unordered_map<std::string, std::optional<std::string>> last_file_bodies;
+    std::unordered_map<std::string, std::optional<pqrs::osx::file_monitor::availability>> last_availabilities;
     std::optional<std::string> last_file_body1_1;
     std::optional<std::string> last_file_body1_2;
     std::optional<std::string> last_file_body2_1;
     std::optional<pqrs::osx::file_monitor::availability> last_availability1_1;
     std::optional<pqrs::osx::file_monitor::availability> last_availability1_2;
     std::optional<pqrs::osx::file_monitor::availability> last_availability2_1;
+
+    [[nodiscard]] std::optional<std::string> get_last_file_body(const std::string& file_path) const {
+      return get_optional_value(last_file_bodies, file_path);
+    }
+
+    [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability(const std::string& file_path) const {
+      return get_optional_value(last_availabilities, file_path);
+    }
+
+  private:
+    template <typename T>
+    [[nodiscard]] static std::optional<T> get_optional_value(const std::unordered_map<std::string, std::optional<T>>& values,
+                                                             const std::string& key) {
+      if (auto it = values.find(key);
+          it != std::end(values)) {
+        return it->second;
+      }
+      return std::nullopt;
+    }
   };
 
-  test_file_monitor() {
+  test_file_monitor() : test_file_monitor({
+                            file_path_1_1,
+                            file_path_1_2,
+                            file_path_2_1,
+                        }) {
+  }
+
+  explicit test_file_monitor(const std::vector<std::string>& targets) : targets_(targets) {
     time_source_ = std::make_shared<pqrs::dispatcher::hardware_time_source>();
     dispatcher_ = std::make_shared<pqrs::dispatcher::dispatcher>(time_source_);
-
-    const auto targets = std::vector<std::string>{
-        file_path_1_1,
-        file_path_1_2,
-        file_path_2_1,
-    };
 
     file_monitor_ = std::make_unique<pqrs::osx::file_monitor>(dispatcher_,
                                                               targets);
@@ -59,16 +83,7 @@ public:
         ++signal_count_;
         ++count_;
         last_file_path_ = changed_file_path;
-
-        if (changed_file_path == file_path_1_1) {
-          last_file_body1_1_ = to_optional_string(changed_file_body);
-        }
-        if (changed_file_path == file_path_1_2) {
-          last_file_body1_2_ = to_optional_string(changed_file_body);
-        }
-        if (changed_file_path == file_path_2_1) {
-          last_file_body2_1_ = to_optional_string(changed_file_body);
-        }
+        last_file_bodies_[changed_file_path] = to_optional_string(changed_file_body);
       }
 
       condition_variable_.notify_all();
@@ -84,15 +99,7 @@ public:
         validate_signal_thread_id();
 
         ++signal_count_;
-        if (watched_file == file_path_1_1) {
-          last_availability1_1_ = availability;
-        }
-        if (watched_file == file_path_1_2) {
-          last_availability1_2_ = availability;
-        }
-        if (watched_file == file_path_2_1) {
-          last_availability2_1_ = availability;
-        }
+        last_availabilities_[watched_file] = availability;
       }
 
       condition_variable_.notify_all();
@@ -101,8 +108,8 @@ public:
     file_monitor_->async_start();
 
     wait_until_ready();
-    wait_until([](const auto& state) {
-      return state.count >= 3;
+    wait_until([this](const auto& state) {
+      return state.count >= targets_.size();
     });
   }
 
@@ -116,27 +123,35 @@ public:
   }
 
   [[nodiscard]] std::optional<std::string> get_last_file_body1_1() const {
-    return get_snapshot().last_file_body1_1;
+    return get_last_file_body(file_path_1_1);
   }
 
   [[nodiscard]] std::optional<std::string> get_last_file_body1_2() const {
-    return get_snapshot().last_file_body1_2;
+    return get_last_file_body(file_path_1_2);
   }
 
   [[nodiscard]] std::optional<std::string> get_last_file_body2_1() const {
-    return get_snapshot().last_file_body2_1;
+    return get_last_file_body(file_path_2_1);
   }
 
   [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability1_1() const {
-    return get_snapshot().last_availability1_1;
+    return get_last_availability(file_path_1_1);
   }
 
   [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability1_2() const {
-    return get_snapshot().last_availability1_2;
+    return get_last_availability(file_path_1_2);
   }
 
   [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability2_1() const {
-    return get_snapshot().last_availability2_1;
+    return get_last_availability(file_path_2_1);
+  }
+
+  [[nodiscard]] std::optional<std::string> get_last_file_body(const std::string& file_path) const {
+    return get_optional_value(get_snapshot().last_file_bodies, file_path);
+  }
+
+  [[nodiscard]] std::optional<pqrs::osx::file_monitor::availability> get_last_availability(const std::string& file_path) const {
+    return get_optional_value(get_snapshot().last_availabilities, file_path);
   }
 
   [[nodiscard]] snapshot get_snapshot() const {
@@ -146,12 +161,14 @@ public:
         count_,
         signal_count_,
         last_file_path_,
-        last_file_body1_1_,
-        last_file_body1_2_,
-        last_file_body2_1_,
-        last_availability1_1_,
-        last_availability1_2_,
-        last_availability2_1_,
+        last_file_bodies_,
+        last_availabilities_,
+        get_optional_value(last_file_bodies_, file_path_1_1),
+        get_optional_value(last_file_bodies_, file_path_1_2),
+        get_optional_value(last_file_bodies_, file_path_2_1),
+        get_optional_value(last_availabilities_, file_path_1_1),
+        get_optional_value(last_availabilities_, file_path_1_2),
+        get_optional_value(last_availabilities_, file_path_2_1),
     };
   }
 
@@ -160,12 +177,8 @@ public:
 
     count_ = 0;
     last_file_path_ = std::nullopt;
-    last_file_body1_1_ = std::nullopt;
-    last_file_body1_2_ = std::nullopt;
-    last_file_body2_1_ = std::nullopt;
-    last_availability1_1_ = std::nullopt;
-    last_availability1_2_ = std::nullopt;
-    last_availability2_1_ = std::nullopt;
+    last_file_bodies_.clear();
+    last_availabilities_.clear();
   }
 
   template <typename Predicate>
@@ -179,12 +192,14 @@ public:
                                               count_,
                                               signal_count_,
                                               last_file_path_,
-                                              last_file_body1_1_,
-                                              last_file_body1_2_,
-                                              last_file_body2_1_,
-                                              last_availability1_1_,
-                                              last_availability1_2_,
-                                              last_availability2_1_,
+                                              last_file_bodies_,
+                                              last_availabilities_,
+                                              get_optional_value(last_file_bodies_, file_path_1_1),
+                                              get_optional_value(last_file_bodies_, file_path_1_2),
+                                              get_optional_value(last_file_bodies_, file_path_2_1),
+                                              get_optional_value(last_availabilities_, file_path_1_1),
+                                              get_optional_value(last_availabilities_, file_path_1_2),
+                                              get_optional_value(last_availabilities_, file_path_2_1),
                                           });
                                         });
   }
@@ -200,6 +215,14 @@ public:
   bool wait_until_enqueued_file_body1_1(const std::string& file_path,
                                         const std::optional<std::string>& expected_body,
                                         std::chrono::milliseconds timeout = std::chrono::milliseconds(5000)) {
+    return wait_until_enqueued_file_body(file_path,
+                                         expected_body,
+                                         timeout);
+  }
+
+  bool wait_until_enqueued_file_body(const std::string& file_path,
+                                     const std::optional<std::string>& expected_body,
+                                     std::chrono::milliseconds timeout = std::chrono::milliseconds(5000)) {
     auto deadline = std::chrono::steady_clock::now() + timeout;
 
     while (std::chrono::steady_clock::now() < deadline) {
@@ -208,9 +231,7 @@ public:
 
       if (wait_until([&](const auto& state) {
             return state.count >= 1 &&
-                   state.last_file_body1_1 == expected_body &&
-                   state.last_file_body1_2 == std::nullopt &&
-                   state.last_file_body2_1 == std::nullopt;
+                   get_optional_value(state.last_file_bodies, file_path) == expected_body;
           },
                      std::chrono::milliseconds(100))) {
         return true;
@@ -243,6 +264,16 @@ public:
   }
 
 private:
+  template <typename T>
+  [[nodiscard]] static std::optional<T> get_optional_value(const std::unordered_map<std::string, std::optional<T>>& values,
+                                                           const std::string& key) {
+    if (auto it = values.find(key);
+        it != std::end(values)) {
+      return it->second;
+    }
+    return std::nullopt;
+  }
+
   void validate_signal_thread_id() {
     auto thread_id = std::this_thread::get_id();
     if (!signal_thread_id_) {
@@ -256,18 +287,15 @@ private:
   std::shared_ptr<pqrs::dispatcher::hardware_time_source> time_source_;
   std::shared_ptr<pqrs::dispatcher::dispatcher> dispatcher_;
   std::unique_ptr<pqrs::osx::file_monitor> file_monitor_;
+  std::vector<std::string> targets_;
   std::optional<std::thread::id> signal_thread_id_;
   mutable std::mutex mutex_;
   std::condition_variable condition_variable_;
   size_t count_ = 0;
   size_t signal_count_ = 0;
   std::optional<std::string> last_file_path_;
-  std::optional<std::string> last_file_body1_1_;
-  std::optional<std::string> last_file_body1_2_;
-  std::optional<std::string> last_file_body2_1_;
-  std::optional<pqrs::osx::file_monitor::availability> last_availability1_1_;
-  std::optional<pqrs::osx::file_monitor::availability> last_availability1_2_;
-  std::optional<pqrs::osx::file_monitor::availability> last_availability2_1_;
+  std::unordered_map<std::string, std::optional<std::string>> last_file_bodies_;
+  std::unordered_map<std::string, std::optional<pqrs::osx::file_monitor::availability>> last_availabilities_;
 };
 } // namespace
 
@@ -634,6 +662,39 @@ int main() {
 
     {
       //
+      // Watch file through a symbolic link in the directory path.
+      //
+
+      std::cout << __LINE__ << " " << std::flush;
+
+      system("rm -rf target");
+      system("mkdir -p target/symlink-real");
+      system("ln -s symlink-real target/symlink-link");
+      system("/bin/echo -n symlink_0 > target/symlink-real/file");
+
+      const auto symlink_file_path = "target/symlink-link/file"s;
+      test_file_monitor monitor({
+          symlink_file_path,
+      });
+
+      expect(monitor.wait_until([&](const auto& state) {
+        return state.get_last_file_body(symlink_file_path) == "symlink_0"s &&
+               state.get_last_availability(symlink_file_path) == pqrs::osx::file_monitor::availability::available;
+      }));
+
+      monitor.clear_results();
+
+      system("/bin/echo -n symlink_1 > target/symlink-real/file");
+
+      expect(monitor.wait_until([&](const auto& state) {
+        return state.count >= 1 &&
+               state.last_file_path == symlink_file_path &&
+               state.get_last_file_body(symlink_file_path) == "symlink_1"s;
+      }));
+    }
+
+    {
+      //
       // Create test_file_monitor when any target files do not exist.
       //
 
@@ -687,11 +748,15 @@ int main() {
 
       system("rm -rf target");
       system("mkdir -p target/sub1");
-      system("mkdir -p target/sub2");
       system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
-      system("/bin/echo -n 1_2_0 > target/sub1/file1_2");
 
-      test_file_monitor monitor;
+      test_file_monitor monitor({
+          file_path_1_1,
+      });
+
+      expect(monitor.wait_until([&](const auto& state) {
+        return state.get_last_file_body(file_path_1_1) == "1_1_0"s;
+      }));
 
       monitor.clear_results();
 
@@ -699,20 +764,18 @@ int main() {
 
       expect(monitor.get_count() == 0);
 
-      expect(monitor.wait_until_enqueued_file_body1_1(file_path_1_1, "1_1_1"s));
+      expect(monitor.wait_until_enqueued_file_body(file_path_1_1, "1_1_1"s));
 
       monitor.clear_results();
 
       system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
 
       expect(monitor.wait_until([&](const auto& state) {
-        return expect_state(state, 1, "1_1_0"s, std::nullopt, std::nullopt);
+        return state.count >= 1 &&
+               state.get_last_file_body(file_path_1_1) == "1_1_0"s;
       }));
 
       expect(monitor.get_count() >= 1);
-      expect(monitor.get_last_file_body1_1() == "1_1_0"s);
-      expect(monitor.get_last_file_body1_2() == std::nullopt);
-      expect(monitor.get_last_file_body2_1() == std::nullopt);
     }
 
     std::cout << std::endl;
