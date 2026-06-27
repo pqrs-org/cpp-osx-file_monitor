@@ -14,7 +14,6 @@ cpp-osx-file_monitor depends the following classes.
 - [pqrs::cf::string](https://github.com/pqrs-org/cpp-cf-string)
 - [pqrs::dispatcher](https://github.com/pqrs-org/cpp-dispatcher)
 - [pqrs::environment_variable](https://github.com/pqrs-org/cpp-environment_variable)
-- [pqrs::filesystem](https://github.com/pqrs-org/cpp-filesystem)
 - [pqrs::gsl](https://github.com/pqrs-org/cpp-gsl)
 - [type_safe](https://github.com/foonathan/type_safe)
 
