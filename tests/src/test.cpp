@@ -1,14 +1,20 @@
 #include <boost/ut.hpp>
 #include <chrono>
 #include <condition_variable>
+#include <crt_externs.h>
 #include <fstream>
 #include <iostream>
 #include <mutex>
 #include <optional>
 #include <pqrs/osx/file_monitor.hpp>
+#include <signal.h>
+#include <spawn.h>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <sys/wait.h>
 #include <thread>
+#include <unistd.h>
 #include <unordered_map>
 #include <vector>
 
@@ -59,12 +65,17 @@ public:
                         }) {
   }
 
-  explicit test_file_monitor(const std::vector<std::string>& targets) : targets_(targets) {
+  explicit test_file_monitor(const std::vector<std::string>& targets,
+                             const pqrs::osx::file_monitor::parameters& parameters = {})
+      : targets_(targets) {
     time_source_ = std::make_shared<pqrs::dispatcher::hardware_time_source>();
     dispatcher_ = std::make_shared<pqrs::dispatcher::dispatcher>(time_source_);
 
     file_monitor_ = std::make_unique<pqrs::osx::file_monitor>(dispatcher_,
-                                                              targets);
+                                                              pqrs::osx::file_monitor::parameters{
+                                                                  .files = targets,
+                                                                  .max_file_size = parameters.max_file_size,
+                                                              });
 
     file_monitor_->file_changed.connect([&](auto&& changed_file_path,
                                             auto&& changed_file_body) {
@@ -299,7 +310,13 @@ private:
 };
 } // namespace
 
-int main() {
+int main(int argc, char* argv[]) {
+  // This mode runs in a fresh process launched by the shell, before any
+  // dispatcher or FSEvents threads have been started.
+  if (argc == 3 && std::string_view(argv[1]) == "--read-file") {
+    return pqrs::osx::file_monitor::read_file(argv[2]) ? 1 : 0;
+  }
+
   using namespace boost::ut;
   using namespace boost::ut::literals;
 
@@ -781,7 +798,79 @@ int main() {
     std::cout << std::endl;
   };
 
-  "read_file"_test = [] {
+  "file_size_limit"_test = [] {
+    using namespace std::string_literals;
+
+    const auto path = "target/file_size_limit"s;
+    std::filesystem::create_directories("target");
+    system("/bin/echo -n 1234 > target/file_size_limit");
+
+    test_file_monitor monitor({path}, {.max_file_size = 4});
+    expect(monitor.wait_until([&](const auto& state) {
+      return state.get_last_file_body(path) == "1234"s &&
+             state.get_last_availability(path) == pqrs::osx::file_monitor::availability::available;
+    }));
+
+    system("/bin/echo -n 12345 > target/file_size_limit");
+    expect(monitor.wait_until([&](const auto& state) {
+      return state.get_last_file_body(path) == std::nullopt &&
+             state.get_last_availability(path) == pqrs::osx::file_monitor::availability::unavailable;
+    }));
+
+    system("/bin/echo -n 123 > target/file_size_limit");
+    expect(monitor.wait_until([&](const auto& state) {
+      return state.get_last_file_body(path) == "123"s &&
+             state.get_last_availability(path) == pqrs::osx::file_monitor::availability::available;
+    }));
+  };
+
+  "read_file_size_limit"_test = [] {
+    const auto path = "target/read_file_size_limit";
+    std::filesystem::create_directories("target");
+    {
+      std::ofstream stream(path);
+      stream << "1234";
+    }
+
+    for (auto limit : {size_t{4}, size_t{5}}) {
+      auto buffer = pqrs::osx::file_monitor::read_file(path, {.max_file_size = limit});
+      expect(buffer != nullptr);
+      if (buffer) {
+        expect(std::string(buffer->begin(), buffer->end()) == "1234");
+      }
+    }
+    expect(pqrs::osx::file_monitor::read_file(path, {.max_file_size = 3}) == nullptr);
+    expect(pqrs::osx::file_monitor::read_file(path, {.max_file_size = 0}) == nullptr);
+
+    const auto link_path = "target/read_file_size_limit_link";
+    ::unlink(link_path);
+    expect(::symlink("read_file_size_limit", link_path) == 0);
+    {
+      auto buffer = pqrs::osx::file_monitor::read_file(link_path, {.max_file_size = 4});
+      expect(buffer != nullptr);
+      if (buffer) {
+        expect(std::string(buffer->begin(), buffer->end()) == "1234");
+      }
+    }
+    expect(pqrs::osx::file_monitor::read_file(link_path, {.max_file_size = 3}) == nullptr);
+    ::unlink(link_path);
+
+    {
+      std::ofstream stream(path);
+    }
+    auto buffer = pqrs::osx::file_monitor::read_file(path, {.max_file_size = 0});
+    expect(buffer != nullptr);
+    if (buffer) {
+      expect(buffer->empty());
+    }
+
+    // A sparse file verifies that the limit is checked before body allocation.
+    std::filesystem::resize_file(path, size_t{1} << 30);
+    expect(pqrs::osx::file_monitor::read_file(path, {.max_file_size = 4}) == nullptr);
+    std::filesystem::remove(path);
+  };
+
+  "read_file"_test = [executable = std::string(argv[0])] {
     {
       auto buffer = pqrs::osx::file_monitor::read_file("data/not_found");
 
@@ -796,6 +885,82 @@ int main() {
 
       expect(buffer.get() != nullptr);
       expect(buffer->empty());
+    }
+
+    // Verify that reading a FIFO, directly or through a symbolic link,
+    // returns nullptr without blocking even when no writer is attached.
+    {
+      expect(pqrs::osx::file_monitor::read_file("target") == nullptr);
+
+      const auto fifo_path = "target/read_file_fifo";
+      const auto link_path = "target/read_file_fifo_link";
+      ::unlink(link_path);
+      ::unlink(fifo_path);
+      expect(::mkfifo(fifo_path,
+                      0600) == 0);
+      expect(::symlink("read_file_fifo",
+                       link_path) == 0);
+
+      for (const auto* path : {fifo_path, link_path}) {
+        // The test process prepares the FIFO and launches the reader through
+        // the shell so a blocking read cannot hang the test process itself.
+        // The parent can time out and kill only the reader, then continue
+        // running the remaining tests. exec preserves the PID for this purpose
+        // and avoids running C++ code in a forked child before exec.
+        char shell[] = "/bin/sh";
+        char option[] = "-c";
+        char script[] = "exec \"$1\" --read-file \"$2\"";
+        char* arguments[] = {shell,
+                             option,
+                             script,
+                             shell,
+                             const_cast<char*>(executable.c_str()),
+                             const_cast<char*>(path),
+                             nullptr};
+        pid_t child = -1;
+        auto spawn_result = ::posix_spawn(&child, shell, nullptr, nullptr,
+                                          arguments, *_NSGetEnviron());
+        expect(spawn_result == 0);
+        if (spawn_result == 0) {
+          int status = 0;
+          pid_t result = 0;
+          const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+          do {
+            result = ::waitpid(child, &status, WNOHANG);
+            if (result == child || (result < 0 && errno != EINTR)) {
+              break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+          } while (std::chrono::steady_clock::now() < deadline);
+
+          const auto timed_out = result == 0 || (result < 0 && errno == EINTR);
+          if (timed_out) {
+            ::kill(child, SIGKILL);
+            do {
+              result = ::waitpid(child, &status, 0);
+            } while (result < 0 && errno == EINTR);
+          }
+          expect(!timed_out);
+          expect(result == child);
+          if (result == child) {
+            expect(WIFEXITED(status));
+            if (WIFEXITED(status)) {
+              expect(WEXITSTATUS(status) == 0);
+            }
+          }
+        }
+      }
+
+      ::unlink(link_path);
+      ::unlink(fifo_path);
+
+      expect(::symlink("empty", link_path) == 0);
+      auto buffer = pqrs::osx::file_monitor::read_file(link_path);
+      expect(buffer != nullptr);
+      if (buffer) {
+        expect(buffer->empty());
+      }
+      ::unlink(link_path);
     }
 
     {
@@ -818,7 +983,9 @@ int main() {
 
     auto monitor = std::make_unique<pqrs::osx::file_monitor>(
         dispatcher,
-        std::vector<std::string>{"target/destruction_test"});
+        pqrs::osx::file_monitor::parameters{
+            .files = {"target/destruction_test"},
+        });
 
     monitor->async_start();
 

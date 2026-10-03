@@ -20,7 +20,11 @@ int main() {
         *home + "/.config/karabiner/karabiner.json",
     };
 
-    auto file_monitor = std::make_shared<pqrs::osx::file_monitor>(dispatcher, target_files);
+    auto file_monitor = std::make_shared<pqrs::osx::file_monitor>(dispatcher,
+                                                                  pqrs::osx::file_monitor::parameters{
+                                                                      .files = target_files,
+                                                                      .max_file_size = 10 * 1024 * 1024,
+                                                                  });
 
     file_monitor->watched_file_availability_changed.connect([](auto&& watched_file, auto availability) {
       std::cout << "watched_file_availability_changed: " << watched_file << " ";
