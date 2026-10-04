@@ -17,12 +17,9 @@
 #include <CoreServices/CoreServices.h>
 #include <algorithm>
 #include <atomic>
-#include <cerrno>
 #include <cstddef>
 #include <cstdint>
-#include <fcntl.h>
 #include <filesystem>
-#include <limits>
 #include <memory>
 #include <mutex>
 #include <nod/nod.hpp>
@@ -31,12 +28,11 @@
 #include <pqrs/cf/array.hpp>
 #include <pqrs/cf/string.hpp>
 #include <pqrs/dispatcher.hpp>
+#include <pqrs/filesystem.hpp>
 #include <pqrs/gsl.hpp>
 #include <string>
-#include <sys/stat.h>
 #include <system_error>
 #include <tuple>
-#include <unistd.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -136,70 +132,6 @@ public:
         });
       }
     });
-  }
-
-  [[nodiscard]] static std::shared_ptr<std::vector<uint8_t>> read_file(const std::string& path) {
-    return read_file(path, parameters{});
-  }
-
-  [[nodiscard]] static std::shared_ptr<std::vector<uint8_t>> read_file(const std::string& path,
-                                                                       const parameters& parameters) {
-    // A FIFO is an unusual input for a file monitor, but may be supplied maliciously.
-    // Opening it must not wait for a writer.
-    // Check the opened descriptor, rather than the path,
-    // so replacing the path cannot bypass the type check.
-    struct file_descriptor final {
-      int value{-1};
-
-      ~file_descriptor() {
-        if (value >= 0) {
-          ::close(value);
-        }
-      }
-    };
-
-    file_descriptor fd{
-        .value = ::open(path.c_str(),
-                        O_RDONLY | O_NONBLOCK | O_CLOEXEC)};
-    if (fd.value < 0) {
-      return nullptr;
-    }
-
-    struct stat status{};
-    if (::fstat(fd.value,
-                &status) != 0 ||
-        // Only read regular files, including those accessed through symbolic links,
-        // to avoid blocking on FIFOs and other special files.
-        !S_ISREG(status.st_mode) ||
-        status.st_size < 0 ||
-        !std::in_range<size_t>(status.st_size)) {
-      return nullptr;
-    }
-
-    auto size = static_cast<size_t>(status.st_size);
-    // Reject oversized files before allocating memory for their contents.
-    if (parameters.max_file_size && size > *parameters.max_file_size) {
-      return nullptr;
-    }
-
-    auto buffer = std::make_shared<std::vector<uint8_t>>(size);
-    size_t offset = 0;
-    while (offset < buffer->size()) {
-      auto count = std::min(buffer->size() - offset,
-                            static_cast<size_t>(std::numeric_limits<ssize_t>::max()));
-      auto result = ::read(fd.value,
-                           buffer->data() + offset,
-                           count);
-      if (result < 0 && errno == EINTR) {
-        continue;
-      }
-      if (result <= 0) {
-        return nullptr;
-      }
-      offset += static_cast<size_t>(result);
-    }
-
-    return buffer;
   }
 
 private:
@@ -542,7 +474,10 @@ private:
 
   // This method is executed in the dispatcher thread.
   [[nodiscard]] std::tuple<bool, std::shared_ptr<std::vector<uint8_t>>, std::optional<availability>> update_file_bodies(const std::string& file_path) {
-    auto file_body = read_file(file_path, parameters_);
+    std::shared_ptr<std::vector<uint8_t>> file_body;
+    if (auto result = pqrs::filesystem::read_file(file_path, {.max_size = parameters_.max_file_size})) {
+      file_body = *result;
+    }
     auto it = file_bodies_.find(file_path);
     auto previous_available = it != std::end(file_bodies_) && static_cast<bool>(it->second);
     if (it != std::end(file_bodies_)) {
