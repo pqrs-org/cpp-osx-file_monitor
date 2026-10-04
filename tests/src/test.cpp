@@ -53,23 +53,20 @@ public:
   };
 
   test_file_monitor() : test_file_monitor({
-                            file_path_1_1,
-                            file_path_1_2,
-                            file_path_2_1,
+                            .files = {
+                                file_path_1_1,
+                                file_path_1_2,
+                                file_path_2_1,
+                            },
                         }) {
   }
 
-  explicit test_file_monitor(const std::vector<std::string>& targets,
-                             const pqrs::osx::file_monitor::parameters& parameters = {})
-      : targets_(targets) {
+  explicit test_file_monitor(const pqrs::osx::file_monitor::parameters& parameters) {
     time_source_ = std::make_shared<pqrs::dispatcher::hardware_time_source>();
     dispatcher_ = std::make_shared<pqrs::dispatcher::dispatcher>(time_source_);
 
     file_monitor_ = std::make_unique<pqrs::osx::file_monitor>(dispatcher_,
-                                                              pqrs::osx::file_monitor::parameters{
-                                                                  .files = targets,
-                                                                  .max_file_size = parameters.max_file_size,
-                                                              });
+                                                              parameters);
 
     file_monitor_->file_changed.connect([&](auto&& changed_file_path,
                                             auto&& changed_file_body) {
@@ -113,8 +110,8 @@ public:
     file_monitor_->async_start();
 
     wait_until_ready();
-    wait_until([this](const auto& state) {
-      return state.count >= targets_.size();
+    wait_until([target_count = parameters.files.size()](const auto& state) {
+      return state.count >= target_count;
     });
   }
 
@@ -292,7 +289,6 @@ private:
   std::shared_ptr<pqrs::dispatcher::hardware_time_source> time_source_;
   std::shared_ptr<pqrs::dispatcher::dispatcher> dispatcher_;
   std::unique_ptr<pqrs::osx::file_monitor> file_monitor_;
-  std::vector<std::string> targets_;
   std::optional<std::thread::id> signal_thread_id_;
   mutable std::mutex mutex_;
   std::condition_variable condition_variable_;
@@ -679,7 +675,7 @@ int main() {
 
       const auto symlink_file_path = "target/symlink-link/file"s;
       test_file_monitor monitor({
-          symlink_file_path,
+          .files = {symlink_file_path},
       });
 
       expect(monitor.wait_until([&](const auto& state) {
@@ -756,7 +752,7 @@ int main() {
       system("/bin/echo -n 1_1_0 > target/sub1/file1_1");
 
       test_file_monitor monitor({
-          file_path_1_1,
+          .files = {file_path_1_1},
       });
 
       expect(monitor.wait_until([&](const auto& state) {
@@ -793,7 +789,7 @@ int main() {
     std::filesystem::create_directories("target");
     system("/bin/echo -n 1234 > target/file_size_limit");
 
-    test_file_monitor monitor({path}, {.max_file_size = 4});
+    test_file_monitor monitor({.files = {path}, .max_file_size = 4});
     expect(monitor.wait_until([&](const auto& state) {
       return state.get_last_file_body(path) == "1234"s &&
              state.get_last_availability(path) == pqrs::osx::file_monitor::availability::available;

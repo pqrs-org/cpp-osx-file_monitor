@@ -478,20 +478,21 @@ private:
     if (auto result = pqrs::filesystem::read_file(file_path, {.max_size = parameters_.max_file_size})) {
       file_body = *result;
     }
+
     auto it = file_bodies_.find(file_path);
     auto previous_available = it != std::end(file_bodies_) && static_cast<bool>(it->second);
+    auto current_available = static_cast<bool>(file_body);
     if (it != std::end(file_bodies_)) {
-      if (it->second && file_body) {
-        if (*(it->second) == *(file_body)) {
-          // file_body is not changed
-          return {false, nullptr, std::nullopt};
-        }
-      } else if (!it->second && !file_body) {
-        // file_body is not changed
+      const auto& previous_body = it->second;
+      const bool both_unavailable = !previous_body && !file_body;
+      const bool same_contents = previous_body && file_body && *previous_body == *file_body;
+
+      if (both_unavailable || same_contents) {
+        // Neither availability nor contents have changed.
         return {false, nullptr, std::nullopt};
       }
     }
-    auto current_available = static_cast<bool>(file_body);
+
     auto availability = current_available != previous_available
                             ? std::optional(current_available ? availability::available
                                                               : availability::unavailable)
