@@ -1,6 +1,6 @@
 #pragma once
 
-// pqrs::filesystem v2.1.0
+// pqrs::filesystem v3.0.0
 
 // (C) Copyright Takayama Fumihiko 2018.
 // Distributed under the Boost Software License, Version 1.0.
@@ -12,7 +12,9 @@
 #include <cstdint>
 #include <expected>
 #include <fcntl.h>
+#include <memory>
 #include <optional>
+#include <pqrs/gsl.hpp>
 #include <string>
 #include <sys/stat.h>
 #include <system_error>
@@ -108,7 +110,7 @@ struct read_file_error final {
 // Follows symlinks, but validates and reads the same opened regular file.
 // O_NONBLOCK avoids waiting for a FIFO writer; it does not make disk I/O asynchronous.
 // A size limit is checked both before allocation and while reading to EOF.
-[[nodiscard]] inline std::expected<std::vector<uint8_t>, read_file_error> read_file(
+[[nodiscard]] inline std::expected<not_null_shared_ptr_t<std::vector<uint8_t>>, read_file_error> read_file(
     const std::string& path,
     const read_file_options& options = {}) {
   struct file_descriptor final {
@@ -182,7 +184,9 @@ struct read_file_error final {
     }
 
     if (size == 0) {
-      return contents;
+      return not_null_shared_ptr_t<std::vector<uint8_t>>{
+          std::make_shared<std::vector<uint8_t>>(std::move(contents)),
+      };
     }
 
     if (static_cast<size_t>(size) > limit - contents.size()) {
