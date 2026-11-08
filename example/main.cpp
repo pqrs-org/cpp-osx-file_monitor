@@ -1,6 +1,7 @@
 #include <csignal>
 #include <iostream>
 #include <pqrs/environment_variable.hpp>
+#include <pqrs/osx/autorelease_pool.hpp>
 #include <pqrs/osx/file_monitor.hpp>
 
 namespace {
@@ -13,7 +14,9 @@ int main() {
   });
 
   auto time_source = std::make_shared<pqrs::dispatcher::hardware_time_source>();
-  auto dispatcher = std::make_shared<pqrs::dispatcher::dispatcher>(time_source);
+  auto dispatcher = std::make_shared<pqrs::dispatcher::dispatcher>(
+      time_source,
+      pqrs::osx::autorelease_pool::execute_with_autorelease_pool);
 
   if (auto home = pqrs::environment_variable::find("HOME")) {
     std::vector<std::string> target_files = {
